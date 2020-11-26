@@ -221,10 +221,16 @@ const useStickyColumns = (columns, tableRef) => {
         widthsRef.current[orderedColumns[index].id] = cell.clientWidth;
       });
       //if (!widthsRead) {
-      setWidths(widthsRef.current);
+      if (
+        JSON.stringify(widthsRef.current || {}) !== JSON.stringify(widths || {})
+      ) {
+        console.log("set widths");
+        setWidths(widthsRef.current);
+      }
+
       //}
     }
-  }, [orderedColumns, setWidths, tableRef]);
+  }, [widths, orderedColumns, setWidths, tableRef]);
 
   useEffect(() => {
     getColumnWidths();
@@ -298,11 +304,11 @@ const Pagination = ({
   );
 };
 
-const Table = React.memo(({ columns, rows, width, height }) => {
+const Table = ({ columns, rows, width, height }) => {
   const tableRef = useRef();
 
   const columnsWithStyles = useStickyColumns(columns, tableRef);
-  console.log(columnsWithStyles);
+  //console.log(columnsWithStyles);
   const { filterTypes, columnsWithFilters } = useFilterTypes(columnsWithStyles);
   const calculatedPageSize = useTableSizing(width, height);
   // Use the state and functions returned from useTable to build your UI
@@ -342,7 +348,7 @@ const Table = React.memo(({ columns, rows, width, height }) => {
 
   useEffect(() => {
     setPageSize(Math.floor(height / 30));
-  });
+  }, [height, setPageSize]);
   // Render the UI for your table
   return (
     <>
@@ -411,7 +417,7 @@ const Table = React.memo(({ columns, rows, width, height }) => {
       />
     </>
   );
-});
+};
 
 const columns = [
   {
@@ -461,8 +467,10 @@ function SearchTable({ rows, columns, height, width }) {
   );
 }
 
-export default () => (
+const component = () => (
   <div style={{ height: 400, width: 500 }}>
     <SearchTable columns={columns} rows={data} height={400} width={500} />
   </div>
 );
+
+export default component;

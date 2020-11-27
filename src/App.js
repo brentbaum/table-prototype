@@ -16,9 +16,10 @@ import {
 } from "react-table";
 import { sortTypes } from "./Sorting";
 // A great library for fuzzy filtering/sorting items
-import matchSorter from "match-sorter";
+import {matchSorter} from "match-sorter";
 import makeData from "./makeData";
 import { getFilter } from "./Filters";
+import {useColumnRenderers} from "./useColumnRenderers";
 
 const Styles = styled.div`
   padding: 1rem;
@@ -52,6 +53,7 @@ const Styles = styled.div`
       margin: 0;
       padding: 0.5rem;
       background-color: white;
+      white-space: nowrap;
 
       :last-child {
         border-right: 0;
@@ -62,6 +64,7 @@ const Styles = styled.div`
   .pagination {
     padding: 0.5rem;
   }
+  
   .table-wrapper {
     overflow-x: auto;
   }
@@ -310,6 +313,7 @@ const Table = ({ columns, rows, width, height }) => {
   const columnsWithStyles = useStickyColumns(columns, tableRef);
   //console.log(columnsWithStyles);
   const { filterTypes, columnsWithFilters } = useFilterTypes(columnsWithStyles);
+  const columnsWithRenderers = useColumnRenderers(columnsWithFilters);
   const calculatedPageSize = useTableSizing(width, height);
   // Use the state and functions returned from useTable to build your UI
   const {
@@ -334,7 +338,7 @@ const Table = ({ columns, rows, width, height }) => {
     state: { pageIndex }
   } = useTable(
     {
-      columns: columnsWithFilters,
+      columns: columnsWithRenderers,
       data: rows,
       initialState: { pageIndex: 0, pageSize: calculatedPageSize },
       filterTypes,
@@ -349,6 +353,7 @@ const Table = ({ columns, rows, width, height }) => {
   useEffect(() => {
     setPageSize(Math.floor(height / 30));
   }, [height, setPageSize]);
+
   // Render the UI for your table
   return (
     <>
@@ -467,10 +472,60 @@ function SearchTable({ rows, columns, height, width }) {
   );
 }
 
-const component = () => (
-  <div style={{ height: 400, width: 500 }}>
-    <SearchTable columns={columns} rows={data} height={400} width={500} />
-  </div>
-);
+// Hook
+function useWindowSize() {
+  // Initialize state with undefined width/height so server and client renders match
+  // Learn more here: https://joshwcomeau.com/react/the-perils-of-rehydration/
+  const [windowSize, setWindowSize] = useState({
+    width: undefined,
+    height: undefined,
+  });
 
-export default component;
+  useEffect(() => {
+    // Handler to call on window resize
+    function handleResize() {
+      // Set window width/height to state
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+
+    // Add event listener
+    window.addEventListener("resize", handleResize);
+
+    // Call handler right away so state gets updated with initial window size
+    handleResize();
+
+    // Remove event listener on cleanup
+    return () => window.removeEventListener("resize", handleResize);
+  }, []); // Empty array ensures that effect is only run on mount
+
+  return windowSize;
+}
+
+const transformColumnForTable = (column) => {
+  return {
+    ...column,
+    accessor: column.dataIndex,
+    id: column.dataIndex,
+    Header: column.title
+  }
+}
+
+const Component = ({columns, rows}) => {
+  const windowSize = useWindowSize();
+
+  const transformedColumns = columns.map(transformColumnForTable).sort((c1, c2) => c1.sequence - c2.sequence);
+  if(!windowSize.height || !windowSize.width) {
+    return <></>
+  }
+
+  return (
+      <div style={{ height: windowSize.height - 20, width: windowSize.width - 20, margin: 10 }}>
+        <SearchTable columns={transformedColumns} rows={rows} height={windowSize.height - 20} width={windowSize.width - 20} />
+      </div>
+  );
+}
+
+export default Component;

@@ -3,4 +3,6 @@ import ReactDOM from 'react-dom'
 import './index.css'
 import App from './App'
 
-ReactDOM.render(<App />, document.getElementById('root'))
+import {response} from "./alertResponse";
+
+ReactDOM.render(<App rows={response.results.alerts} columns={response.results.columns}/>, document.getElementById('root'))

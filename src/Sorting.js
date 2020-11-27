@@ -5,14 +5,10 @@ import {
   isString,
   sortBy,
   maxBy,
-  isArray
+  isArray,
+    isNil
 } from "lodash";
-// import { safeJsonParse } from "~/utils";
-// import { determinePath, parseLinkValue } from "./selectors";
-// import { getIndexOfFirstNoneNumber } from "~/utils/string";
-// import { getUTC } from "~/utils/time";
-// import { isBlank } from "~/utils/forms";
-// import moment from "moment";
+import moment from "moment"
 
 const DATA_TYPES = {
   1: "Float",
@@ -24,6 +20,77 @@ const DATA_TYPES = {
   7: "Date"
 };
 
+export const getUTC = time => {
+  return new Date(Number(time)).getTime();
+};
+
+export const getPath = (row, entityType) => {
+  const hierarchyIds =
+          typeof row.pathIds === "string"
+              ? safeJsonParse(row.pathIds, [])
+              : row.pathIds,
+      hierarchyNames =
+          typeof row.pathNames === "string"
+              ? safeJsonParse(row.pathNames, [])
+              : row.pathNames;
+  const shouldConcatProperty =
+      entityType === "Property" && row.propertyId && row.propertyName,
+      pathIds = shouldConcatProperty
+          ? hierarchyIds.concat(row.propertyId)
+          : hierarchyIds,
+      pathNames = shouldConcatProperty
+          ? hierarchyNames.concat(row.propertyName)
+          : hierarchyNames;
+  return {
+    pathIds,
+    pathNames
+  };
+};
+
+export const determinePath = (row, entityType) => {
+  const pathDepth = entityType === "Property" ? 4 : 3,
+      {pathNames = []} = getPath(row, entityType);
+
+  if (isEmpty(pathNames)) return null;
+
+  const displayNames = pathNames.slice(
+      Math.max(0, pathNames.length - pathDepth),
+      pathNames.length
+  );
+
+  return displayNames.join(" / ");
+};
+
+export const safeJsonParse = (json, defaultValue = {}, useDefault = false) => {
+  if (isEmpty(json)) {
+    const valueTypes = ["number", "boolean"];
+    if (valueTypes.includes(typeof json)) {
+      return json;
+    }
+    return useDefault ? defaultValue : null;
+  }
+  try {
+    return JSON.parse(json);
+  } catch (e) {
+    return defaultValue;
+  }
+};
+
+export const parseLinkValue = value => {
+  const parsedValue =
+          typeof value === "string" ? safeJsonParse(value, []) : value,
+      links = (isArray(parsedValue) ? parsedValue : [parsedValue]).filter(
+          f => !!f
+      );
+  return {parsedValue, links};
+};
+
+export const getIndexOfFirstNoneNumber = str => {
+  if (!str || typeof str !== "string") {
+    return -1;
+  }
+  return str.search(/[^\d.-]/);
+};
 const isIncompleteNumber = (str) => {
   return str === "-" || str === ".";
 };
@@ -53,6 +120,8 @@ const sortNumber = (leftValue, rightValue) => {
 
   return isNaN(leftNumber) ? 1 : -1;
 };
+
+const isBlank = (value) => isNil(value) || value === "";
 
 const determineValueType = (value) => {
   if (isBlank(value) || isIncompleteNumber(value)) {

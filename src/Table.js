@@ -20,9 +20,13 @@ import {matchSorter} from "match-sorter";
 import makeData from "./makeData";
 import { getFilter } from "./Filters";
 import {useColumnRenderers} from "./useColumnRenderers";
+import {columnRenderers} from "./testRenderers";
+
+const ROW_HEIGHT = 34;
+const HEAD_HEIGHT = ROW_HEIGHT + 4
+const FOOTER_HEIGHT = 37;
 
 const Styles = styled.div`
-  padding: 1rem;
   .table-wrapper {
     border: 1px solid rgb(233, 233, 233);
   }
@@ -42,10 +46,14 @@ const Styles = styled.div`
         }
       }
     }
+    
     thead th {
       background-color: #f5f8fa;
       color: #838692;
       border-bottom: 1px solid rgb(233, 233, 233);
+      height: ${HEAD_HEIGHT}px;
+      padding: 0px .5rem;
+      position: relative;
     }
 
     th,
@@ -60,6 +68,29 @@ const Styles = styled.div`
       }
     }
   }
+  
+  .filter-wrapper {
+    padding: .5rem;
+    background-color: #f5f8fa;
+    border: 1px solid rgb(233, 233, 233);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  // the first column will be off-screen if the filter wraps left. Wrap it right.
+  th:first-child .filter-wrapper {
+    right: auto;
+    left: 0;
+  }
+  
+  // small div to give the filter popover a connected feeling.
+  .filter-arrow {
+    position: absolute;
+    right: 0;
+    left: 0;
+    height: 5px;
+    bottom: -1px;
+    background-color: #f5f8fa;
+  }
 
   .pagination {
     padding: 0.5rem;
@@ -70,19 +101,20 @@ const Styles = styled.div`
   }
 `;
 
-function fuzzyTextFilterFn(rows, id, filterValue) {
-  return matchSorter(rows, filterValue, { keys: [(row) => row.values[id]] });
-}
 
-fuzzyTextFilterFn.autoRemove = (val) => !val;
+
+const FilterWrapper = styled.div`
+  position: absolute; 
+  top: ${HEAD_HEIGHT}px;
+  right: 0px;
+`
 
 const useFilterTypes = (columns) => {
   const filterTypes = React.useMemo(
     () => ({
-      // Add a new fuzzyTextFilterFn filter type.
-      fuzzyText: fuzzyTextFilterFn,
-      // Or, override the default text filter to use
-      // "startWith"
+        number: (rows, id) => {
+          return true;
+        },
       text: (rows, id, filterValue) => {
         return rows.filter((row) => {
           const rowValue = row.values[id];
@@ -117,7 +149,7 @@ const useFilterTypes = (columns) => {
               >
                 <div
                   style={{
-                    paddingRight: 12,
+                    paddingRight: 4,
                     display: "flex",
                     alignItems: "center",
                     textAlign: "left",
@@ -157,10 +189,16 @@ const useFilterTypes = (columns) => {
                   </>
                 )}
               </div>
-              {filterVisible[props.column.id] && (
-                <div onClick={(e) => e.stopPropagation()}>
-                  {props.column.render("Filter")}
-                </div>
+              {filterVisible[columnDef.id] && (
+                <>
+                  <FilterWrapper
+                      onClick={(e) => e.stopPropagation()}
+                      className={"filter-wrapper"}>
+                    {props.column.render("Filter")}
+                    <button onClick={() => setFilterVisible({})}>Done</button>
+                  </FilterWrapper>
+                  <div className={"filter-arrow"}/>
+                </>
               )}
             </div>
           );
@@ -188,7 +226,36 @@ const getStickyOffsets = (widths, columns) => {
   ).offsetByColumn;
 };
 
-const useStickyColumns = (columns, tableRef) => {
+const useMeasureColumnWidths = (columns, tableRef) => {
+
+  // we keep widths as state so that it triggers the sticky offset useMemo.
+  const [widths, setWidths] = useState({});
+
+  const getColumnWidths = useCallback(() => {
+      const allWidths = {}
+    if (tableRef.current) {
+      [...tableRef.current.rows[0].cells].forEach((cell, index) => {
+        allWidths[columns[index].id] = cell.clientWidth;
+      });
+
+      if (
+          JSON.stringify(allWidths) !== JSON.stringify(widths || {})
+      ) {
+        setWidths(allWidths);
+      }
+
+      //}
+    }
+  }, [widths, columns, setWidths, tableRef]);
+
+  useEffect(() => {
+    getColumnWidths();
+  }, [getColumnWidths]);
+
+  return widths
+}
+
+const useStickyColumns = (columns, widths) => {
   const orderedColumns = useMemo(() => {
     const originalOrders = columns.reduce((acc, column, index) => {
       return {
@@ -214,30 +281,6 @@ const useStickyColumns = (columns, tableRef) => {
     });
   }, [columns]);
 
-  // we keep widths as state so that it triggers the sticky offset useMemo.
-  const [widths, setWidths] = useState({});
-  const widthsRef = useRef({});
-
-  const getColumnWidths = useCallback(() => {
-    if (tableRef.current) {
-      [...tableRef.current.rows[0].cells].forEach((cell, index) => {
-        widthsRef.current[orderedColumns[index].id] = cell.clientWidth;
-      });
-      //if (!widthsRead) {
-      if (
-        JSON.stringify(widthsRef.current || {}) !== JSON.stringify(widths || {})
-      ) {
-        console.log("set widths");
-        setWidths(widthsRef.current);
-      }
-
-      //}
-    }
-  }, [widths, orderedColumns, setWidths, tableRef]);
-
-  useEffect(() => {
-    getColumnWidths();
-  }, [getColumnWidths]);
 
   return useMemo(() => {
     const rightPinnedColumns = [...orderedColumns]
@@ -248,7 +291,6 @@ const useStickyColumns = (columns, tableRef) => {
     );
 
     const rightOffsets = getStickyOffsets(widths, rightPinnedColumns);
-    console.log({ rightOffsets, widths: widths, rightPinnedColumns });
 
     const leftOffsets = getStickyOffsets(widths, leftPinnedColumns);
     const columnsWithStyles = orderedColumns.map((column, index) => {
@@ -268,7 +310,7 @@ const useStickyColumns = (columns, tableRef) => {
 };
 
 const useTableSizing = (width, height) => {
-  const pageSize = useMemo(() => Math.floor(height / 30), [height]);
+  const pageSize = useMemo(() => Math.floor(height / 34), [height]);
 
   return pageSize;
 };
@@ -307,13 +349,21 @@ const Pagination = ({
   );
 };
 
+const usePageSize = (setPageSize, height, width, columnWidths) => {
+  useEffect(() => {
+    const scrollbarHeight = Object.values(columnWidths).reduce((sum, w) => sum + w, 0) > width ? 10 : 0;
+    const nonRowHeight = (HEAD_HEIGHT + FOOTER_HEIGHT + scrollbarHeight);
+    setPageSize(Math.floor((height - nonRowHeight) / ROW_HEIGHT));
+  }, [height, setPageSize, columnWidths]);
+}
+
 const Table = ({ columns, rows, width, height }) => {
   const tableRef = useRef();
 
-  const columnsWithStyles = useStickyColumns(columns, tableRef);
-  //console.log(columnsWithStyles);
+  const columnWidths = useMeasureColumnWidths(columns, tableRef)
+  const columnsWithStyles = useStickyColumns(columns, columnWidths);
   const { filterTypes, columnsWithFilters } = useFilterTypes(columnsWithStyles);
-  const columnsWithRenderers = useColumnRenderers(columnsWithFilters);
+  const columnsWithRenderers = useColumnRenderers(columnsWithFilters, columnRenderers);
   const calculatedPageSize = useTableSizing(width, height);
   // Use the state and functions returned from useTable to build your UI
   const {
@@ -350,9 +400,7 @@ const Table = ({ columns, rows, width, height }) => {
     usePagination
   );
 
-  useEffect(() => {
-    setPageSize(Math.floor(height / 30));
-  }, [height, setPageSize]);
+  usePageSize(setPageSize, height, width, columnWidths);
 
   // Render the UI for your table
   return (

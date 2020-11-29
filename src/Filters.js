@@ -6,7 +6,6 @@ import {
   useAsyncDebounce
 } from "react-table";
 // A great library for fuzzy filtering/sorting items
-import matchSorter from "match-sorter";
 // Define a default UI for filtering
 export function GlobalFilter({
   preGlobalFilteredRows,
@@ -182,10 +181,10 @@ export function NumberRangeColumnFilter({
   );
 }
 
-export const getFilter = (name) => {
+export const getFilter = (filterType) => {
   return (
     {
       number: NumberRangeColumnFilter
-    }[name] || DefaultColumnFilter
+    }[filterType] || DefaultColumnFilter
   );
 };

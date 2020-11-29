@@ -1,38 +1,8 @@
-import React, {useState, useMemo} from "react";
-import styled from "styled-components";
-import {getFormattedLocalDatetime} from "./time";
+import React, {useMemo} from "react";
 
-const booleanRenderer = (value, row) => {
-    if (row && row.filler) {
-        return <></>;
-    }
-    return (
-        value ? "√" : "-"
-    );
-};
-
-const dateRenderer = (value) => {
-    if(!value) {
-        return <span></span>
-    }
-    try {
-        const date = new Date(value);
-        return <span>{getFormattedLocalDatetime(date)}</span>
-    } catch(e) {
-        return <span>-</span>
-    }
-};
-
-
-const columnRenderers = {
-    booleanRenderer,
-    dateRenderer
-};
-
-function MyCell({ value, column, row, index, ...restProps }) {
-    console.log(row, restProps)
+function Cell({ value, column, original: row, index, renderers, ...restProps }) {
     if(column.renderWith || !column.render) {
-        const renderer = columnRenderers[column.renderWith];
+        const renderer = renderers[column.renderWith];
 
         if (!renderer) {
             return typeof value === "string" ? (
@@ -44,24 +14,19 @@ function MyCell({ value, column, row, index, ...restProps }) {
         }
         return renderer(
             value,
-            row.values,
+            row,
             column,
             // rowSelectionActions,
             // fetch
         );
     }
-    try {
 
-        return <a href="#" onClick={() => alert("hi")}>{value}</a>
-        }
-        catch(e) {
-        return <span>error</span>
-        }
+        return <span>{value}</span>
 }
 export const useColumnRenderers = (
     columnList = [],
+    columnRenderers
 ) => {
-
     return useMemo(() => columnList
         .map(col => {
             return {
@@ -69,7 +34,7 @@ export const useColumnRenderers = (
                 dataIndex: col.dataIndex === "assetId" ? "name" : col.dataIndex,
                 key: col.key || col.title,
                 pinned: col.fixed || col.pinned,
-                Cell: MyCell
+                Cell: props => <Cell {...props} renderers={columnRenderers} />
             };
-        }), []);
+        }), [columnList]);
 };
